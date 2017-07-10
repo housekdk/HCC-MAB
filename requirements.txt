@@ -1,0 +1,10 @@
+numpy>=1.13.0
+pandas>=0.20.2
+slacker>=0.9.50
+scipy>=0.19.1
+feedparser>=5.2.1
+beautifulsoup4>=4.6.0
+scikit_learn>=0.18.2
+SQLAlchemy>=1.1.11
+flask>=0.12.2
+apscheduler>=3.3.1

@@ -1,0 +1,19 @@
+# folders and files to be ignored
+Webscope/
+yahoo_r6/
+log/
+*.db
+__pycache__/
+mab/__pycache__/
+yahoo_r6/__pycache__/
+config.ini
+.idea/
+
+# OS generated files
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db

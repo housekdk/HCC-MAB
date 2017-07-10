@@ -1,0 +1,10 @@
+[SERVER]
+host = 127.0.0.1
+port = 5000
+
+[SLACK]
+token = your slack token
+recipient = @slack_id or #slack_channel
+message_title = your title
+num_news_display = 4
+length_description = 200
