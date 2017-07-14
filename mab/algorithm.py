@@ -66,6 +66,11 @@ class AverageBanditAlgorithm(BanditAlgorithm):
         self.averages = np.zeros(num_arms)
 
     def select_arm(self):
+        # choose a random unseen arm rather than seen arms
+        zero_ind = np.where(self.counts == 0)[0]
+        if len(zero_ind):
+            return np.random.choice(zero_ind)
+
         # tie-breaking, https://stackoverflow.com/questions/42071597/numpy-argmax-random-tie-breaking
         return np.random.choice(np.flatnonzero(self.averages == self.averages.max()))
 
@@ -195,9 +200,11 @@ class UCB1Algorithm(AverageBanditAlgorithm):
               Journal of Machine Learning Research 3.Nov (2002): 397-422.
     """
     def select_arm(self):
+        # choose a random unseen arm rather than seen arms
         zero_ind = np.where(self.counts == 0)[0]
         if len(zero_ind):
             return np.random.choice(zero_ind)
+
         ucb_values = self.averages + np.sqrt(2 * np.log(self.counts.sum()) / self.counts)
         return np.random.choice(np.flatnonzero(ucb_values == ucb_values.max()))
 
@@ -222,6 +229,7 @@ class UCBTunedAlgorithm(UCB1Algorithm):
         zero_ind = np.where(self.counts == 0)[0]
         if len(zero_ind):
             return np.random.choice(zero_ind)
+
         variance = self.average_of_squares - np.power(self.averages, 2)
         log_t_div_cnt = np.log(self.counts.sum()) / self.counts
         ucb_values = self.averages + np.sqrt(log_t_div_cnt * np.minimum(0.25, variance + np.sqrt(2 * log_t_div_cnt)))
@@ -277,6 +285,7 @@ class UCBVAlgorithm(UCBTunedAlgorithm):
         zero_ind = np.where(self.counts == 0)[0]
         if len(zero_ind):
             return np.random.choice(zero_ind)
+
         variance = self.average_of_squares - np.power(self.averages, 2)
         log_total = np.log(self.counts.sum())
         bonus = np.sqrt(2 * log_total * variance / self.counts) + 3 * self.parameter * log_total / self.counts

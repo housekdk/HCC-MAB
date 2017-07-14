@@ -1,10 +1,37 @@
 [SERVER]
 host = 127.0.0.1
 port = 5000
+fresh_start = yes
 
 [SLACK]
 token = your slack token
-recipient = @slack_id or #slack_channel
-message_title = your title
-num_news_display = 4
-length_description = 200
+recipient = @slack_id or /#slack_channel ('/': escape character for '#')
+num_news_display = 10
+length_summary = 200
+message_title = News
+author_name = Featured
+author_link = https://github.com
+author_icon = https://avatars3.githubusercontent.com/u/162998?v=3&s=88
+footer = by News
+default_redirect_link = https://github.com
+print_variation_info = yes
+shuffle = yes
+highlight_featured = no
+
+[SCHEDULE]
+# the parameters of add_job()
+# http://apscheduler.readthedocs.io/en/latest/modules/triggers/cron.html
+day_of_week = mon-fri
+hour = 8,13,18
+
+[CONTENTS]
+mab_algorithm = EpsilonGreedyAlgorithm
+mab_algorithm_params = 0.1
+variation1 = 인공지능,핀테크,데이터과학,연구
+variation2 = 인공지능,게임,영화,연예
+variation3 = 인공지능,날씨,재테크,정치
+
+[FILE]
+pickle_algorithm = algorithm.dat
+pickle_articles = articles.dat
+pickle_params = params.dat

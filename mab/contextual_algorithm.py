@@ -129,6 +129,7 @@ class LinUCBHybridAlgorithm(ContextualBanditAlgorithm):
         self.z = None  # context z: hybrid features
         self.x = None  # context x: article features
         self.A0 = np.identity(num_dimensions_k)
+        self.A0_inv = np.identity(num_dimensions_k)
         self.b0 = np.zeros(num_dimensions_k)
 
         self.A = np.tile(np.identity(num_dimensions_d), (num_arms, 1)).reshape(
@@ -149,15 +150,14 @@ class LinUCBHybridAlgorithm(ContextualBanditAlgorithm):
         # context: num_arms * (num_dimensions_k + num_dimensions_d) numpy ndarray
         self.z = context[:, :self.num_dim_k]
         self.x = context[:, self.num_dim_k:]
-        a0_inv = np.linalg.inv(self.A0)
-        beta = a0_inv.dot(self.b0)
+        beta = self.A0_inv.dot(self.b0)
         for arm in range(self.num_arms):
             theta = self.A_inv[arm].dot(self.b[arm] - self.B[arm].dot(beta))
-            z_t_a0_inv = self.z[arm].dot(a0_inv)
+            z_t_a0_inv = self.z[arm].dot(self.A0_inv)
             a_inv_x = self.A_inv[arm].dot(self.x[arm])
             s = z_t_a0_inv.dot(self.z[arm]) - 2 * z_t_a0_inv.dot(self.B[arm].T).dot(a_inv_x) +\
                 self.x[arm].dot(a_inv_x) +\
-                self.x[arm].dot(self.A_inv[arm]).dot(self.B[arm]).dot(a0_inv).dot(self.B[arm].T).dot(a_inv_x)
+                self.x[arm].dot(self.A_inv[arm]).dot(self.B[arm]).dot(self.A0_inv).dot(self.B[arm].T).dot(a_inv_x)
             self.p[arm] = self.z[arm].dot(beta) + self.x[arm].dot(theta) + self.alpha * np.sqrt(s)
         return np.random.choice(np.flatnonzero(self.p == self.p.max()))  # tie-breaking
 
@@ -171,6 +171,7 @@ class LinUCBHybridAlgorithm(ContextualBanditAlgorithm):
         self.A_inv[arm] = np.linalg.inv(self.A[arm])
         b_t_a_inv = self.B[arm].T.dot(self.A_inv[arm])
         self.A0 += np.outer(self.z[arm], self.z[arm]) - b_t_a_inv.dot(self.B[arm])
+        self.A0_inv = np.linalg.inv(self.A0)
         self.b0 += reward * self.z[arm] - b_t_a_inv.dot(self.b[arm])
 
     def add_arm(self):
@@ -198,6 +199,28 @@ class LinUCBHybridAlgorithm(ContextualBanditAlgorithm):
 
     def __str__(self):
         return 'LinUCBHybrid(alpha={})'.format(self.alpha)
+
+
+# BHOH Original
+# TEST REQUIRED
+class FastLinUCBHybridAlgorithm(LinUCBHybridAlgorithm):
+    def update(self, arm, reward):
+        b_t_a_inv = self.B[arm].T.dot(self.A_inv[arm])
+        self.A0 += b_t_a_inv.dot(self.B[arm])
+        self.b0 += b_t_a_inv.dot(self.b[arm])
+        inc_a = np.outer(self.x[arm], self.x[arm])
+        self.A[arm] += inc_a
+        self.B[arm] += np.outer(self.x[arm], self.z[arm])
+        self.b[arm] += reward * self.x[arm]
+        self.A_inv[arm] = self.A_inv[arm] - self.A_inv[arm] * inc_a * self.A_inv[arm]  # inv(A) approximation
+        b_t_a_inv = self.B[arm].T.dot(self.A_inv[arm])
+        inc_a = np.outer(self.z[arm], self.z[arm])
+        self.A0 += inc_a - b_t_a_inv.dot(self.B[arm])
+        self.A0_inv = self.A0_inv - self.A0_inv * inc_a * self.A0_inv  # inv(A0) approximation
+        self.b0 += reward * self.z[arm] - b_t_a_inv.dot(self.b[arm])
+
+    def __str__(self):
+        return 'FastLinUCBHybrid(alpha={})'.format(self.alpha)
 
 
 # Agrawal and Goyal (2013 ICML, 2014 arXiv)

@@ -1,100 +1,62 @@
-import random
-import numpy as np
 from slacker import Slacker
-from newsbot import database
-from urllib.parse import urlparse
+import datetime
 
 
 class SlackNewsBot:
-    def __init__(self, params, is_update_db=False):
-        self.param = params
-        self.slack = Slacker(self.param.slack_token)
-        self.df = params.load_news_df()
+    def __init__(self, config_dict):
+        self.config_dict = config_dict
+        self.slack = Slacker(config_dict['token'])
+        self.num_display = int(config_dict['num_news_display'])
+        self.length_summary = int(config_dict['length_summary'])
+        self.highlight_featured = True if config_dict['highlight_featured'].upper() in {'YES', 'TRUE'} else False
         self.attachments = []
-        self.is_update_db = is_update_db
-        self.db = database.NewsDatabase(self.param)
+        self.current_df = None
 
-    def get_slack_message_for_selected_news(self, df_sub, is_featured):
+        # 뉴스 주제별 color 정보
+        self.slack_color_dict = {0: '#8904B1', 1: '#0404B4', 2: '#B92323',
+                                 6: '#26FF92', 7: '#FF00BF', 8: '#424242'}
+
+    def post_message(self, recipient, article_df, msg_text=None, as_user=True):
+        if msg_text is None:
+            msg_text = datetime.datetime.now().strftime('*_%Y/%m/%d %H:%M_*')
+        self.slack.chat.post_message(recipient, msg_text,
+                                     attachments=self.__generate_attachments(article_df), as_user=as_user)
+
+    def __generate_attachments(self, article_df):
+        self.attachments[:] = []  # clear the old attachments
+        for idx in range(len(article_df)):
+            if idx == self.num_display:
+                break
+            if idx == 0 and self.highlight_featured:
+                is_featured = True
+            else:
+                is_featured = False
+            self.attachments.append(self.__get_slack_message_for_selected_news(article_df.iloc[idx], is_featured))
+        return self.attachments
+
+    def __get_slack_message_for_selected_news(self, df_sub, is_featured):
         title = df_sub['title']
-        description = df_sub['description']
-        # original_url = self.news_main_url + df_sub[4]
-
-        redirection_url = df_sub['redirection_url']
-        parsed_rd_url = urlparse(redirection_url)
-        redirection_url.replace(parsed_rd_url.netloc,
-                                '{}:{}'.format(self.param.server_address, self.param.server_port))
-
-        thumbnail_url = df_sub['thumbnail_url']
+        summary = df_sub['summary']
+        redirect_link = df_sub['redirect_link']
+        image = df_sub['image']
         dic = dict()
 
         if is_featured:
-            dic['image_url'] = thumbnail_url
-            # dic['pretext'] = ''' *_[Featured News by A-Lab]_* '''
-            dic['color'] = self.param.slack_color_dict[0]
-            dic['author_name'] = 'Featured News'
-            dic['author_link'] = 'http://www.hyundaicard.com'
-            dic['author_icon'] = 'https://avatars3.githubusercontent.com/u/162998?v=3&s=88'
+            dic['image_url'] = image
+            dic['color'] = self.slack_color_dict[0]
+            dic['author_name'] = self.config_dict['author_name']
+            dic['author_link'] = self.config_dict['author_link']
+            dic['author_icon'] = self.config_dict['author_icon']
         else:
-            dic['thumb_url'] = thumbnail_url
-
-        #dic['color'] = self.news_subject_dict[subject_idx][1]
+            dic['thumb_url'] = image
 
         dic['title'] = title
-        dic['title_link'] = redirection_url
-        dic['fallback'] = description[0:self.param.description_length] + '...'
-        dic['text'] = description[0:self.param.description_length] + '...'
-        dic['footer'] = 'A-Lab News Bot'
+        dic['title_link'] = redirect_link
+        if self.length_summary is not None:
+            summary = summary[0:self.length_summary]
+        dic['fallback'] = summary + '...'
+        dic['text'] = summary + '...'
+        dic['footer'] = self.config_dict['footer']
         dic['mrkdwn_in'] = ["author_name", "text", "pretext"]
 
         return dic
-
-    def append_attachments_per_subject(self, subject_idx, is_featured=False):
-        df_selected_subject = self.df.loc[self.df['subject_idx'] == subject_idx]
-        num_news_per_subject = len(df_selected_subject)
-        selected_news_idx = np.random.choice(num_news_per_subject)
-        df_selected_news = df_selected_subject.iloc[selected_news_idx]
-        dic = self.get_slack_message_for_selected_news(df_selected_news, is_featured)
-        self.attachments.append(dic)
-        if self.is_update_db:
-            self.db.insert_event(df_selected_news)
-
-    def append_attachments_per_title(self, news_idx, is_featured=False):
-        df_selected_news = self.df.iloc[news_idx]
-        dic = self.get_slack_message_for_selected_news(df_selected_news, is_featured)
-        self.attachments.append(dic)
-        if self.is_update_db:
-            self.db.insert_event(df_selected_news)
-
-        return df_selected_news['subject_idx']
-
-    def post_message(self, selected_arm, is_post_per_subject):
-        featured_news_idx = selected_arm  # MAB output (selected arm index)
-
-        # Option 1: 뉴스 주제별로 한 건씩 보여줌
-        #   > MAB에서 선정한 1건을 맨 위에 보여줌
-        #   > MAB로 기 선택된 뉴스가 다시 선택되지 않게 뉴스 후보 리스트군에서 제거하고
-        #   > 나머지 8건의 뉴스 종류에서 num_news_display-1 건수만큼 랜덤으로 선택해 보여줌
-        if is_post_per_subject:
-            subject_group = (self.df.groupby('subject_idx')).size()
-            subject_list = list(subject_group.index.values)
-            featured_subject_idx = self.append_attachments_per_title(featured_news_idx, True)
-            subject_list.remove(featured_subject_idx)
-            subject_show_list = random.sample(subject_list, self.param.num_news_display-1)
-            for v in subject_show_list:
-                self.append_attachments_per_subject(v)
-        # Option 2: 뉴스 주제와 무관하게 랜덤하게 보여줌
-        #   > MAB에서 선정한 1건을 맨 위에 보여줌
-        #   > MAB로 기 선택된 뉴스가 다시 선택되지 않게 뉴스 후보 리스트군에서 제거하고
-        #   > 나머지 뉴스에서 num_news_display-1 건수만큼 랜덤으로 선택해 보여줌
-        else:
-            news_list = list(range(self.param.num_news))
-            self.append_attachments_per_title(featured_news_idx, True)
-
-            # self.append_attachments_df.iloc[2:]
-
-            news_list.remove(featured_news_idx)
-            news_show_list = random.sample(news_list, self.param.num_news_display-1)
-            for v in news_show_list:
-                self.append_attachments_per_title(v)
-
-        return self.attachments

@@ -7,7 +7,7 @@ import numpy as np
 import time
 
 
-num_trials = 10000
+num_trials = 100000
 print('total number of trials: {}'.format(num_trials))
 
 arms = ArticleArms('../yahoo_r6_full.db')
@@ -22,10 +22,11 @@ algorithms = [
     bd.UCBVAlgorithm(num_arms, 0.1),
     bd.BayesBanditAlgorithm(num_arms),
     bd.Exp3Algorithm(num_arms, 0.1),
-    cbd.LinUCBDisjointAlgorithm(num_arms, 6 + 200, 0.2),  # 6: number of article features
+    cbd.LinUCBDisjointAlgorithm(num_arms, 6, 0.2),  # 6: number of article features
     # cbd.LinUCBDisjointAlgorithm(num_arms, 42, 0.2),  # 42: number of hybrid + article features
-    # cbd.LinUCBHybridAlgorithm(num_arms, 36, 6, 0.2),  # 36: number of hybrid features
-    cbd.FastLinUCBDisjointAlgorithm(num_arms, 6 + 200, 0.2)
+    cbd.LinUCBHybridAlgorithm(num_arms, 36, 6, 0.2),  # 36: number of hybrid features
+    cbd.FastLinUCBDisjointAlgorithm(num_arms, 6, 0.2),
+    cbd.FastLinUCBHybridAlgorithm(num_arms, 36, 6, 0.2)
 ]
 num_algorithms = len(algorithms)
 print('number of algorithms: {}'.format(num_algorithms))
@@ -60,9 +61,9 @@ for t in range(1, num_trials + 1):
         alg_start_time = time.perf_counter()
         if isinstance(algorithms[i], cbd.ContextualBanditAlgorithm):  # contextual
             if isinstance(algorithms[i], cbd.LinUCBDisjointAlgorithm):
-                context = np.hstack((arms.get_article_features_all(), np.random.randn(20, 200) * 0.1))
-                arm_algorithm = algorithms[i].select_arm(context)
-                # arm_algorithm = algorithms[i].select_arm(arms.get_all_features())
+                # context = np.hstack((arms.get_article_features_all(), np.random.randn(20, 200) * 0.1))
+                # arm_algorithm = algorithms[i].select_arm(context)
+                arm_algorithm = algorithms[i].select_arm(arms.get_article_features_all())
             if isinstance(algorithms[i], cbd.LinUCBHybridAlgorithm):
                 arm_algorithm = algorithms[i].select_arm(arms.get_all_features())
         else:  # non-contextual
