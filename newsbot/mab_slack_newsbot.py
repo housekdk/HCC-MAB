@@ -76,7 +76,7 @@ class MABSlackNewsBot(object):
         self.message_title = self.config_slack['message_title']
         self.num_news_display = int(self.config_slack['num_news_display'])
         self.recipient = self.config_slack['recipient']
-        self.recipient = re.sub(r'//#|\\#', '#', self.recipient)  # remove escape '/' of '/#'
+        self.recipient = re.sub(r'/#|\\#', '#', self.recipient)  # remove escape '/' of '/#'
         self.print_variation_info =\
             True if self.config_slack['print_variation_info'].upper() in {'YES', 'TRUE'} else False
         self.shuffle = True if self.config_slack['shuffle'].upper() in {'YES', 'TRUE'} else False
