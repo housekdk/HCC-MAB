@@ -5,9 +5,21 @@ import datetime
 class SlackNewsBot:
     def __init__(self, config_dict):
         self.config_dict = config_dict
-        self.slack = Slacker(config_dict['token'])
+        self.slack = None
+        try:
+            timeout = int(config_dict['timeout'])
+            self.slack = Slacker(config_dict['token'], timeout)
+        except KeyError:
+            self.slack = Slacker(config_dict['token'])
         self.num_display = int(config_dict['num_news_display'])
-        self.length_summary = int(config_dict['length_summary'])
+        try:
+            self.length_summary = int(config_dict['length_summary'])
+        except KeyError:
+            self.length_summary = None
+        try:
+            self.footer = config_dict['footer']
+        except KeyError:
+            self.footer = None
         self.highlight_featured = True if config_dict['highlight_featured'].upper() in {'YES', 'TRUE'} else False
         self.attachments = []
         self.current_df = None
@@ -18,7 +30,7 @@ class SlackNewsBot:
 
     def post_message(self, recipient, article_df, msg_text=None, as_user=True):
         if msg_text is None:
-            msg_text = datetime.datetime.now().strftime('*_%Y/%m/%d %H:%M_*')
+            msg_text = datetime.datetime.now().strftime('*_%Y-%m-%d %H:%M_*')
         self.slack.chat.post_message(recipient, msg_text,
                                      attachments=self.__generate_attachments(article_df), as_user=as_user)
 
@@ -27,16 +39,17 @@ class SlackNewsBot:
         for idx in range(len(article_df)):
             if idx == self.num_display:
                 break
-            if idx == 0 and self.highlight_featured:
-                is_featured = True
-            else:
-                is_featured = False
+            is_featured = True if (idx == 0 and self.highlight_featured) else False
             self.attachments.append(self.__get_slack_message_for_selected_news(article_df.iloc[idx], is_featured))
         return self.attachments
 
     def __get_slack_message_for_selected_news(self, df_sub, is_featured):
         title = df_sub['title']
         summary = df_sub['summary']
+        if summary is None:
+            summary = df_sub['text']
+        if self.length_summary is not None:
+            summary = summary[0:self.length_summary]
         redirect_link = df_sub['redirect_link']
         image = df_sub['image']
         dic = dict()
@@ -52,11 +65,9 @@ class SlackNewsBot:
 
         dic['title'] = title
         dic['title_link'] = redirect_link
-        if self.length_summary is not None:
-            summary = summary[0:self.length_summary]
         dic['fallback'] = summary + '...'
         dic['text'] = summary + '...'
-        dic['footer'] = self.config_dict['footer']
+        dic['footer'] = df_sub['provider'] if self.footer is None else self.footer
         dic['mrkdwn_in'] = ["author_name", "text", "pretext"]
 
         return dic

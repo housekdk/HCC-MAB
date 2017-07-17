@@ -8,6 +8,7 @@ mab/__pycache__/
 yahoo_r6/__pycache__/
 config.ini
 .idea/
+*.dat
 
 # OS generated files
 .DS_Store

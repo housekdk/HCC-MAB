@@ -222,13 +222,13 @@ class NewsScrapperGoogle(object):
         google_news = self.client.get_news()
         df_columns = ['title', 'provider', 'date', 'link', 'image', 'summary', 'text']
         article_df = pd.DataFrame()
-        # article_df = pd.DataFrame(columns=df_columns, index=np.arange(len(google_news)))
 
         for idx, article in enumerate(google_news):
             target = pd.Series(['' for i in range(len(df_columns))], df_columns)
             title_split = article['title'].split(' - ')
             if len(title_split) > 1:
-                target['title'] = ' - '.join(title_split[:len(title_split) - 1])
+                # target['title'] = ' - '.join(title_split[:len(title_split) - 1])
+                target['title'] = title_split[0]  # valid if there are no ' - ' in the title, but...
                 target['provider'] = title_split[len(title_split) - 1]
             else:
                 target['title'] = article['title']
@@ -263,7 +263,7 @@ class NewsScrapperGoogle(object):
                 news_obj.parse()
                 target['image'] = '' if news_obj.top_image is None else news_obj.top_image
                 date = '' if news_obj.publish_date is None else news_obj.publish_date
-                target['date'] = date if type(date) is str else date.strftime('%Y.%m.%d %H:%M')  # what the...
+                target['date'] = date if type(date) is str else date.strftime('%Y-%m-%d %H:%M:%S')  # what the...
                 target['text'] = news_obj.text  # always exist
 
                 summary_text = re.sub(r'(\\r|\\n|\\t|\s)+', ' ', target['text'])
@@ -282,9 +282,7 @@ class NewsScrapperGoogle(object):
 
         if len(words) == 1:
             if type(words) is dict:
-                return self.scrap_by_word(list(words.keys())[0])
-            else:
-                return self.scrap_by_word(words[0])
+                words = [list(words.keys())[0]]
 
         article_df = pd.DataFrame()
         num_words = len(words)

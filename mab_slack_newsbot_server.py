@@ -1,5 +1,5 @@
 # mab_slack_newsbot_server.py
-# by Byonghwa Oh, 20170714
+# by Byonghwa Oh, 20170717
 
 # posts some news to the slack recipient (user or channel) and optimizes CTR with multi-armed bandit algorithm
 # please modify 'config.ini' (copy from 'config.ini.example') for initial start-up
@@ -29,9 +29,9 @@ atexit.register(lambda: cron.shutdown())  # when the server terminates, remove t
 
 # for every monday ~ friday at 8:00, 13:00, 18:00, the post_news() is executed
 # Refer to: http://apscheduler.readthedocs.io/en/latest/modules/triggers/cron.html
-# cron.add_job(func=mab_bot.post_news, trigger='cron', minute='*/20', replace_existing=True)  # test (every 10 minute)
-cron.add_job(func=mab_bot.post_news, trigger='cron',
-             day_of_week=cron_day_of_week, hour=cron_hour, replace_existing=True)
+cron.add_job(func=mab_bot.post_news, trigger='cron', minute='*/10', replace_existing=True)  # test (every 20 minute)
+#cron.add_job(func=mab_bot.post_news, trigger='cron',
+#             day_of_week=cron_day_of_week, hour=cron_hour, replace_existing=True)
 
 # flask web server
 app = Flask(__name__)

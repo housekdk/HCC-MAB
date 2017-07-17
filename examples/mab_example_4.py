@@ -1,4 +1,4 @@
-# simple tests on dynamic environment (addition/deletion of arms)
+# simple run on dynamic environment (addition/deletion of arms)
 
 from mab import algorithm as bd
 from mab import arm

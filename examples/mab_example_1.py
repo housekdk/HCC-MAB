@@ -1,4 +1,4 @@
-# simple tests of all multi-armed bandit algorithms
+# simple evaluation of all multi-armed bandit algorithms
 
 from mab import algorithm as bd
 from mab import arm

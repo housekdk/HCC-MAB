@@ -1,9 +1,13 @@
 [SERVER]
+# fresh_start = yes: reset environment by removing all files in [FILE] sections
 host = 127.0.0.1
 port = 5000
 fresh_start = yes
 
 [SLACK]
+# length_summary: comment out this line, if you don't need to suppress the length of the summary
+# timeout: comment out this line, if you don't need to change the default timeout of slack api (default: 10)
+# footer: all provider strings in news are replaced by this footer string (comment out it if you don't want)
 token = your slack token
 recipient = @slack_id or /#slack_channel ('/': escape character for '#')
 num_news_display = 10
@@ -12,11 +16,12 @@ message_title = News
 author_name = Featured
 author_link = https://github.com
 author_icon = https://avatars3.githubusercontent.com/u/162998?v=3&s=88
-footer = by News
+# footer = by News
 default_redirect_link = https://github.com
 print_variation_info = yes
 shuffle = yes
 highlight_featured = no
+timeout = 300
 
 [SCHEDULE]
 # the parameters of add_job()
@@ -32,6 +37,9 @@ variation2 = 인공지능,게임,영화,연예
 variation3 = 인공지능,날씨,재테크,정치
 
 [FILE]
+# if use_sqlite = yes, then the articles are stored in sqlite3 databases
+use_sqlite = yes
+sqlite_articles = articles.db
 pickle_algorithm = algorithm.dat
 pickle_articles = articles.dat
 pickle_params = params.dat

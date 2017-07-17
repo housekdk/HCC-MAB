@@ -53,7 +53,7 @@ def redirect_handler(path):
 
 # Refer to: https://stackoverflow.com/questions/21214270/flask-run-function-every-hour
 def post_news():
-    msg_text = datetime.datetime.now().strftime('*_{}, %Y/%m/%d %H:%M_*'.format(slack_msg_title))
+    msg_text = datetime.datetime.now().strftime('*_{}, %Y-%m-%d %H:%M_*'.format(slack_msg_title))
     article_df = scrapper.scrap_by_multiple_words(contents)
 
     redirect_urls = []

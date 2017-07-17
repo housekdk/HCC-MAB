@@ -1,6 +1,13 @@
-# non-contextual mabs for yahoo's front news recommendation
+# non-contextual and contextual multi-armed bandits for yahoo's front news recommendation
+
+# LinUCBDisjoint and LinUCBHybrid are contextual multi-armed bandits algorithms
+# FastLinUCBDisjoint and FastLinUCBHybrid are improved versions in terms of computation (and accuracy) by Byonghwa Oh
+
+# for unbiased estimation, replay method (by Li 2012) was applied
+# (Li et al., "An Unbiased Offline Evaluation of Contextual Bandit Algorithms based on Generalized Linear Models")
 
 from mab import algorithm as bd
+from mab import contextual_algorithm as cbd
 from mab import ArticleArms
 import numpy as np
 import time
@@ -17,17 +24,14 @@ algorithms = [
     bd.EpsilonGreedyAlgorithm(num_arms, 1),
     bd.AverageBanditAlgorithm(num_arms),
     bd.EpsilonGreedyAlgorithm(num_arms, 0.1),
-    bd.SoftmaxAlgorithm(num_arms, 0.1),
-    bd.UCB1Algorithm(num_arms),
     bd.UCBTunedAlgorithm(num_arms),
     bd.UCBVAlgorithm(num_arms, 0.1),
     bd.BayesBanditAlgorithm(num_arms),
     bd.Exp3Algorithm(num_arms, 0.1),
-    bd.Exp31Algorithm(num_arms),
-    bd.Exp3SAlgorithm(num_arms, 0.1, 0.002),
-    bd.Exp3S1Algorithm(num_arms),
-    bd.Exp3PAlgorithm(num_arms, 0.1, 0.1, num_trials),
-    bd.Exp3P1Algorithm(num_arms, 0.1)
+    cbd.LinUCBDisjointAlgorithm(num_arms, 6, 0.2),  # 6: number of article features
+    cbd.LinUCBHybridAlgorithm(num_arms, 36, 6, 0.2),  # 36: number of hybrid features
+    cbd.FastLinUCBDisjointAlgorithm(num_arms, 6, 0.2),
+    cbd.FastLinUCBHybridAlgorithm(num_arms, 36, 6, 0.2)
 ]
 num_algorithms = len(algorithms)
 print('number of algorithms: {}'.format(num_algorithms))
@@ -40,6 +44,8 @@ removing_arms_indices = []
 print_point_divisor = np.power(10, np.ceil(np.log10(num_trials)) - 2)
 print_num_trials_divisor = print_point_divisor * 10
 newline = True
+
+alg_elapsed_time = [0 for i in range(num_algorithms)]
 
 # replay method (unbiased estimation, Li 2012)
 print('evaluation starts at {}'.format(time.strftime("%Y-%m-%d %H:%M:%S")))
@@ -57,12 +63,21 @@ for t in range(1, num_trials + 1):
                 algorithms[i].remove_arm(j)
 
         # unbiased estimation (algorithm 2)
-        arm_algorithm = algorithms[i].select_arm()
+        alg_start_time = time.perf_counter()
+        if isinstance(algorithms[i], cbd.ContextualBanditAlgorithm):  # contextual
+            if isinstance(algorithms[i], cbd.LinUCBDisjointAlgorithm):
+                arm_algorithm = algorithms[i].select_arm(arms.get_article_features_all())
+            if isinstance(algorithms[i], cbd.LinUCBHybridAlgorithm):
+                arm_algorithm = algorithms[i].select_arm(arms.get_all_features())
+        else:  # non-contextual
+            arm_algorithm = algorithms[i].select_arm()
+
         if arm_algorithm == arm_event:
             reward = float(arms.get_reward(i))
             total_cumulative_rewards[i] += reward
             algorithms[i].update(arm_algorithm, reward)
             trials[i] += 1
+            alg_elapsed_time[i] += time.perf_counter() - alg_start_time
 
     # get the information of the next arms
     num_arms_added, removing_arms_indices = arms.next()
@@ -86,7 +101,8 @@ print('evaluation ends at {}'.format(time.strftime("%Y-%m-%d %H:%M:%S")))
 
 estimated_rewards = total_cumulative_rewards / trials
 for i in range(num_algorithms):
-    print('algorithm {0}: {1}, per-trial reward: {2:.6f}, number of trials: {3}'
-          .format(i + 1, str(algorithms[i]), estimated_rewards[i], trials[i]))
+    print('algorithm {0}: {1}, per-trial reward: {2:.6f}, number of trials: {3:.0f}, avg_time: {4:.3f} microseconds'
+          .format(i + 1, str(algorithms[i]), estimated_rewards[i], trials[i],
+                  alg_elapsed_time[i] / float(trials[i]) * 1000000))
 max_index = np.array(estimated_rewards).argmax()
 print('winner: {0}, per-trial reward: {1:.6f}'.format(str(algorithms[max_index]), estimated_rewards[max_index]))

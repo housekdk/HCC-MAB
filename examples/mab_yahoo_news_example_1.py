@@ -1,33 +1,41 @@
-# non-contextual mabs for yahoo's front news recommendation
+# non-contextual multi-armed bandits for yahoo's front news recommendation
+
+# for unbiased estimation, replay method (by Li 2012) was applied
+# (Li et al., "An Unbiased Offline Evaluation of Contextual Bandit Algorithms based on Generalized Linear Models")
 
 from mab import algorithm as bd
-from mab import contextual_algorithm as cbd
 from mab import ArticleArms
-from mab import scorer as sc
 import numpy as np
 import time
 
 
-num_trials = 2000
+num_trials = 100000
 print('total number of trials: {}'.format(num_trials))
 
 arms = ArticleArms('../yahoo_r6_full.db')
 num_arms = arms.get_num_arms()
 print('number of arms: {}'.format(num_arms))
 
-param_c = 10000000  # very large c: not assuming mortality
-# param_c = None
 algorithms = [
+    bd.EpsilonGreedyAlgorithm(num_arms, 1),
+    bd.AverageBanditAlgorithm(num_arms),
     bd.EpsilonGreedyAlgorithm(num_arms, 0.1),
-    bd.UCB1Algorithm(num_arms)
+    bd.SoftmaxAlgorithm(num_arms, 0.1),
+    bd.UCB1Algorithm(num_arms),
+    bd.UCBTunedAlgorithm(num_arms),
+    bd.UCBVAlgorithm(num_arms, 0.1),
+    bd.BayesBanditAlgorithm(num_arms),
+    bd.Exp3Algorithm(num_arms, 0.1),
+    bd.Exp31Algorithm(num_arms),
+    bd.Exp3SAlgorithm(num_arms, 0.1, 0.002),
+    bd.Exp3S1Algorithm(num_arms),
+    bd.Exp3PAlgorithm(num_arms, 0.1, 0.1, num_trials),
+    bd.Exp3P1Algorithm(num_arms, 0.1)
 ]
 num_algorithms = len(algorithms)
 print('number of algorithms: {}'.format(num_algorithms))
 
 total_cumulative_rewards = np.zeros(num_algorithms)
-total_cumulative_logging_rewards = np.zeros(num_algorithms)
-total_cumulative_diff_rewards = np.zeros(num_algorithms)
-
 trials = np.zeros(num_algorithms)
 num_arms_added = 0
 removing_arms_indices = []
@@ -35,10 +43,6 @@ removing_arms_indices = []
 print_point_divisor = np.power(10, np.ceil(np.log10(num_trials)) - 2)
 print_num_trials_divisor = print_point_divisor * 10
 newline = True
-
-avg_scores = np.zeros(num_algorithms)
-cum_scores = np.zeros(num_algorithms)
-scorer = sc.AverageRewardScorer()
 
 # replay method (unbiased estimation, Li 2012)
 print('evaluation starts at {}'.format(time.strftime("%Y-%m-%d %H:%M:%S")))
@@ -56,28 +60,10 @@ for t in range(1, num_trials + 1):
                 algorithms[i].remove_arm(j)
 
         # unbiased estimation (algorithm 2)
-        if isinstance(algorithms[i], cbd.ContextualBanditAlgorithm):  # contextual
-            if isinstance(algorithms[i], cbd.LinUCBDisjointAlgorithm):
-                arm_algorithm = algorithms[i].select_arm(arms.get_article_features_all())
-            if isinstance(algorithms[i], cbd.LinUCBHybridAlgorithm):
-                arm_algorithm = algorithms[i].select_arm(arms.get_all_features())
-        else:  # non-contextual
-            arm_algorithm = algorithms[i].select_arm()
-
-        #if t < num_trials:
-        #    scorer.update_score(t, arm_event, reward)
-        #else:
-        #    avg_scores[i] = scorer.update_score(t, arm_event, reward)
-
-        logging_reward = float(arms.get_reward(arm_event))
-
+        arm_algorithm = algorithms[i].select_arm()
         if arm_algorithm == arm_event:
             reward = float(arms.get_reward(i))
-            diff_reward = reward - logging_reward
             total_cumulative_rewards[i] += reward
-            total_cumulative_logging_rewards[i] += logging_reward
-            total_cumulative_diff_rewards[i] + diff_reward
-
             algorithms[i].update(arm_algorithm, reward)
             trials[i] += 1
 
