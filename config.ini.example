@@ -1,5 +1,5 @@
 [SERVER]
-# fresh_start = yes: reset environment by removing all files in [FILE] sections
+# fresh_start = yes: reset environments by removing all files in the [FILE] section
 host = 127.0.0.1
 port = 5000
 fresh_start = yes
