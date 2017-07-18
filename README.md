@@ -1,4 +1,4 @@
-[News Slack Bot Recommender Python Package]
+[Slack News Bot Python Package]
 ======================
 
 # Installation
@@ -7,8 +7,8 @@
 $ pip install -r requirements.txt
 ```
 ### 설정 파일 수정
-- config.ini.example 파일의 이름을 config.ini로 변경
-- ini 파일 수정 (아래 참조)
+- *config.ini.example* 파일의 이름을 *config.ini*로 변경
+- *config.ini* 파일 수정: 아래 설명을 참조하여 파일 수정
 ```
 [SERVER]
 host = 127.0.0.1    # 실행 환경의 host를 입력 (기본값은 localhost)
