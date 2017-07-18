@@ -123,7 +123,7 @@ class NewsScrapperNaver(object):
         return self.__get_property('og:image')
 
     def __get_summary(self):
-        return self.__get_property('og:description')
+        return hp.unescape(self.__get_property('og:description'))
 
     def __get_date(self):
         date_area = self.current_soup.find('span', class_='media_end_head_info_datestamp_time')
@@ -263,8 +263,8 @@ class NewsScrapperGoogle(object):
                 news_obj.parse()
                 target['image'] = '' if news_obj.top_image is None else news_obj.top_image
                 date = '' if news_obj.publish_date is None else news_obj.publish_date
-                target['date'] = date if type(date) is str else date.strftime('%Y-%m-%d %H:%M:%S')  # what the...
-                target['text'] = news_obj.text  # always exist
+                target['date'] = date if type(date) is str else date.strftime('%Y-%m-%d %H:%M:%S')  # datetime or str
+                target['text'] = self.__remove_redundant_text(news_obj.text)
 
                 summary_text = re.sub(r'(\\r|\\n|\\t|\s)+', ' ', target['text'])
                 if self.len_summary is None:
@@ -294,3 +294,13 @@ class NewsScrapperGoogle(object):
         article_df = article_df.sort_values('priority').reset_index(drop=True).\
             drop('priority', 1).drop_duplicates(['link'])
         return article_df
+
+    @staticmethod
+    # need to be improved more and more
+    def __remove_redundant_text(text):
+        text = hp.unescape(text)  # remove escaped entities from text
+        text = re.sub(r'^.*?ADVERTISEMENT', '', text, 0, re.S)  # to the first ADVERTISEMENT (Huff post)
+        text = re.sub(r'^.*수정.+[:\d]+', '', text)  # ~ 수정 : 2017.07.17 15:32 기사본문 (한국일보)
+        text = re.sub(r'^.*기사입력.+[:\d]+', '', text)  # 기사입력 2017-07-17 09:03:01 기사본문 (스포츠조선)
+        text.strip()
+        return text

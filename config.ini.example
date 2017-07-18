@@ -7,7 +7,7 @@ fresh_start = yes
 [SLACK]
 # length_summary: comment out this line, if you don't need to suppress the length of the summary
 # timeout: comment out this line, if you don't need to change the default timeout of slack api (default: 10)
-# footer: all provider strings in news are replaced by this footer string (comment out it if you don't want)
+# footer: all provider strings in news are replaced by this footer string (comment out if you don't want)
 token = your slack token
 recipient = @slack_id or /#slack_channel ('/': escape character for '#')
 num_news_display = 10
@@ -26,6 +26,7 @@ timeout = 300
 [SCHEDULE]
 # the parameters of add_job()
 # http://apscheduler.readthedocs.io/en/latest/modules/triggers/cron.html
+# (day_of_week = mon-fri, hour = 8,13,18) : post messages for every mon ~ friday at 8, 13, 18:00
 day_of_week = mon-fri
 hour = 8,13,18
 
@@ -37,9 +38,10 @@ variation2 = 인공지능,게임,영화,연예
 variation3 = 인공지능,날씨,재테크,정치
 
 [FILE]
-# if use_sqlite = yes, then the articles are stored in sqlite3 databases
+# if use_sqlite = yes: articles and algorithm/params are stored in sqlite databases
+#                 no : use pickle to store them
 use_sqlite = yes
-sqlite_articles = articles.db
+sqlite_database = newsbot.db
 pickle_algorithm = algorithm.dat
 pickle_articles = articles.dat
 pickle_params = params.dat

@@ -10,3 +10,4 @@ apscheduler>=3.3.1
 gnewsclient>=1.0.2
 newspaper3k>=0.2.2
 peewee>=2.10.1
+timeout-decorator>=0.3.3

@@ -14,8 +14,6 @@ for file in os.listdir('Webscope/R6/'):
     if file.endswith('.gz'):
         print(file)
         proc.process_file('Webscope/R6/' + file)
-# proc.process_file('Webscope/R6/ydata-fp-td-clicks-v1_0.20090501.gz')  # test
-# proc.process_file('Webscope/R6/ydata-fp-td-clicks-v1_0.20090501.gz', skip_lines=4600000)  # test
 t1 = time.time()
 
 the_time = str(datetime.timedelta(seconds=t1-t0))

@@ -7,64 +7,9 @@ import numpy as np
 import pandas as pd
 import datetime
 import uuid
+import requests
 from flask import redirect
 from peewee import *
-import requests
-
-
-# http://peewee.readthedocs.io/en/latest/peewee/database.html#deferring-initialization
-database_proxy = Proxy()
-
-
-# Article ORM class (using peewee)
-class ProcessArticle(object):
-    class BaseModel(Model):
-        class Meta:
-            database = database_proxy
-
-    class Article(BaseModel):
-        title = CharField(unique=True)
-        provider = CharField()
-        date = CharField()
-        link = CharField(unique=True)
-        image = CharField()
-        summary = TextField()
-        text = TextField()
-        subject = CharField()
-        variation = IntegerField()
-        redirect_link = CharField(unique=True)
-        clicks = IntegerField()
-
-    def __init__(self, db):
-        database_proxy.initialize(db)
-        self.db = db
-        self.db.connect()
-        self.Article.create_table(fail_silently=True)
-
-    def __del__(self):
-        self.db.close()
-
-    def insert(self, article, variation):
-        element = self.Article.create(title=article.title, provider=article.provider,
-                                      date=article.date, link=article.link,
-                                      image=article.image, summary=article.summary,
-                                      text=article.text, subject=article.subject,
-                                      redirect_link=article.redirect_link, clicks=article.clicks,
-                                      variation=variation)
-        element.save()
-
-    # path: sub-part of redirection link, excluding server_url
-    def get_link_and_update_clicks(self, path, clicks_increment=1):
-        query = self.Article.select().where(self.Article.redirect_link.contains(path))
-        for article in query:  # typically one article exists in 'query'
-            article.clicks += clicks_increment
-            article.save()
-            return article.link
-        return None
-
-    def is_exist_by_title(self, title):
-        query = self.Article.select().where(self.Article.title == title)
-        return True if len(query) else False
 
 
 # post news by using slacker api and get click rewards for mab variation selection
@@ -82,60 +27,50 @@ class MABSlackNewsBot(object):
         file_algorithm = self.config_file['pickle_algorithm']
         file_articles = self.config_file['pickle_articles']
         if self.fresh_start:
-            try:
-                os.remove(file_params)
-            except OSError:
-                pass
-            try:
-                os.remove(file_algorithm)
-            except OSError:
-                pass
-            try:
-                os.remove(file_articles)
-            except OSError:
-                pass
+            self.__remove_file(file_params)
+            self.__remove_file(file_algorithm)
+            self.__remove_file(file_articles)
 
-        # load internal parameters
+        self.database = None
+        self.mab = None
         self.variation_strings = []
         self.num_variations = 0
         self.rewards = None
-        if os.path.isfile(file_params):
-            self.__pickle_params_load()  # load from pickled file
-        else:
-            for key_str in self.config_content:
-                if 'variation' in key_str:
-                    self.variation_strings.append(self.config_content[key_str])
-            self.num_variations = len(self.variation_strings)
-            self.rewards = [np.array([]) for i in range(self.num_variations)]   # list of empty numpy arrays
-
-        # create a multi-armed bandit algorithm instance, or reload
-        self.mab = None
-        if os.path.isfile(file_algorithm):
-            self.__pickle_algorithm_load()
-        else:
-            class_ = getattr(mab, self.config_content['mab_algorithm'])
-            params = self.config_content['mab_algorithm_params']
-            if len(params) > 0:
-                params = re.split('[\s,]+', self.config_content['mab_algorithm_params'])
-                params = [float(param) for param in params]  # string to text
-                self.mab = class_(self.num_variations, *params)
-            else:
-                self.mab = class_(self.num_variations)
-
-        # load all articles have served
-        # self.use_sqlite = True, then process article information via sqlite3
         self.articles = None
+
+        # self.use_sqlite = True, then process information via sqlite3
         self.use_sqlite = True if self.config_file['use_sqlite'].upper() in {'YES', 'TRUE'} else False
-        if self.use_sqlite:
-            sqlite_articles = self.config_file['sqlite_articles']
+
+        # load from database or files
+        if self.use_sqlite:  # (database)
+            file_sqlite = self.config_file['sqlite_database']
+            # (database) connect
             if self.fresh_start:
-                try:
-                    os.remove(sqlite_articles)
-                except OSError:
-                    pass
-            self.db = SqliteDatabase(sqlite_articles)
-            self.articles = ProcessArticle(self.db)
-        else:
+                self.__remove_file(file_sqlite)
+            self.db = SqliteDatabase(file_sqlite)
+            self.database = newsbot.DatabaseNewsBot(self.db)
+
+            # (database) load latest mab algorithm object and params
+            self.mab, params = self.database.get_latest_object()
+            if self.mab is not None:
+                self.__unpack_params(params)
+            else:
+                self.__init_params()
+                self.__init_algorithm()
+        else:  # (pickle)
+            # (pickle) load internal parameters
+            if os.path.isfile(file_params):
+                self.__pickle_params_load()  # load from pickled file
+            else:
+                self.__init_params()
+
+            # (pickle) create a multi-armed bandit algorithm instance, or reload
+            if os.path.isfile(file_algorithm):
+                self.__pickle_algorithm_load()
+            else:
+                self.__init_algorithm()
+
+            # (pickle) load all articles have served
             if os.path.isfile(file_articles):
                 self.__pickle_articles_load()
             else:
@@ -178,7 +113,7 @@ class MABSlackNewsBot(object):
         if self.use_sqlite:
             not_in = []
             for row in article_df.itertuples():
-                val = True if not self.articles.is_exist_by_title(row.title) else False
+                val = True if not self.database.is_exist_article(row.title) else False
                 not_in.append(val)
             article_df = article_df[pd.Series(not_in, index=article_df.index.values)]
         else:
@@ -190,6 +125,7 @@ class MABSlackNewsBot(object):
             unique_titles = np.setdiff1d(new_titles, old_titles)
             article_df = article_df[article_df['title'].isin(unique_titles)]  # remove old news
 
+        # if there is no unique article in article_df, do nothing
         if len(article_df) == 0:
             self.current_article_df = article_df
             return
@@ -223,7 +159,7 @@ class MABSlackNewsBot(object):
         self.posted = True
         try:
             self.bot.post_message(self.recipient, article_df, msg_text)
-        except requests.exceptions.ReadTimeout:  # unpredictable errors of slacker api (logging if needed)
+        except requests.exceptions.ReadTimeout:  # unpredictable errors of slacker api (leave logs if needed)
             pass
 
     def redirect_handler(self, path):
@@ -242,25 +178,61 @@ class MABSlackNewsBot(object):
                 return redirect(url)
 
         if self.use_sqlite:
-            url = self.articles.get_link_and_update_clicks(path)
+            url = self.database.get_link_and_update_clicks(path)
             if url is not None:
                 return redirect(url)
 
         return redirect(self.config_slack['default_redirect_link'])
+
+    # remove file if exists (otherwise, pass silently)
+    @staticmethod
+    def __remove_file(path):
+        try:
+            os.remove(path)
+        except OSError:
+            pass
+
+    # initialize self.num_variations and self.rewards
+    def __init_params(self):
+        for key_str in self.config_content:
+            if 'variation' in key_str:
+                self.variation_strings.append(self.config_content[key_str])
+        self.num_variations = len(self.variation_strings)
+        self.rewards = [np.array([]) for i in range(self.num_variations)]  # list of empty numpy arrays
+
+    # initialize self.mab
+    def __init_algorithm(self):
+        class_ = getattr(mab, self.config_content['mab_algorithm'])
+        alg_params = self.config_content['mab_algorithm_params']
+        if len(alg_params) > 0:
+            alg_params = re.split('[\s,]+', self.config_content['mab_algorithm_params'])
+            alg_params = [float(alg_param) for alg_param in alg_params]  # string to text
+            self.mab = class_(self.num_variations, *alg_params)
+        else:
+            self.mab = class_(self.num_variations)
 
     def __save_states(self):
         self.rewards[self.current_arm] =\
             np.append(self.rewards[self.current_arm], self.current_rewards[self.current_arm])
         self.mab.update(self.current_arm, self.current_rewards[self.current_arm])  # update algorithm state
         self.current_rewards = np.zeros(self.num_variations)
-        self.__pickle_algorithm_dump()
-        self.__pickle_params_dump()
 
         if self.use_sqlite:
             for row in self.current_article_df.itertuples():
-                self.articles.insert(row, self.current_arm)
+                self.database.insert_article(row, self.current_arm)
+            self.database.insert_object(self.mab, self.__pack_params())
         else:
+            self.__pickle_algorithm_dump()
+            self.__pickle_params_dump()
             self.__pickle_articles_dump()
+
+    def __pack_params(self):
+        return {'variation_strings': self.variation_strings, 'rewards': self.rewards}
+
+    def __unpack_params(self, pack_dict):
+        self.variation_strings = pack_dict['variation_strings']
+        self.num_variations = len(self.variation_strings)
+        self.rewards = pack_dict['rewards']
 
     def __pickle_algorithm_dump(self):
         file_algorithm = self.config_file['pickle_algorithm']
@@ -274,18 +246,14 @@ class MABSlackNewsBot(object):
 
     def __pickle_params_dump(self):
         file_params = self.config_file['pickle_params']
-        pickle_pack_dict = {'variation_strings': self.variation_strings,
-                            'rewards': self.rewards}
         with open(file_params, 'wb') as f:
-            pickle.dump(pickle_pack_dict, f)
+            pickle.dump(self.__pack_params(), f)
 
     def __pickle_params_load(self):
         file_params = self.config_file['pickle_params']
         with open(file_params, 'rb') as f:
             pickle_pack_dict = pickle.load(f)
-        self.variation_strings = pickle_pack_dict['variation_strings']
-        self.num_variations = len(self.variation_strings)
-        self.rewards = pickle_pack_dict['rewards']
+        self.__unpack_params(pickle_pack_dict)
 
     def __pickle_articles_dump(self):
         file_articles = self.config_file['pickle_articles']

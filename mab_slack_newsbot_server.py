@@ -27,7 +27,6 @@ cron = BackgroundScheduler()
 cron.start()
 atexit.register(lambda: cron.shutdown())  # when the server terminates, remove the scheduler
 
-# for every monday ~ friday at 8:00, 13:00, 18:00, the post_news() is executed
 # Refer to: http://apscheduler.readthedocs.io/en/latest/modules/triggers/cron.html
 # cron.add_job(func=mab_bot.post_news, trigger='cron', minute='*/10', replace_existing=True)  # test (every 10 minute)
 cron.add_job(func=mab_bot.post_news, trigger='cron',
