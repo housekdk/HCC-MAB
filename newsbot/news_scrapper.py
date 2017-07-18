@@ -66,7 +66,7 @@ class NewsScrapperNaver(object):
         return {'title': title,
                 'provider': self.__get_provider(),
                 'date': self.__get_date(),
-                'link': self.__get_desktop_url(self.current_url),
+                'link': self.current_url,
                 'image': self.__get_image(),
                 'summary': self.__get_summary(),
                 'text': self.__get_text(),
