@@ -63,7 +63,7 @@ class TestNewsScrapper(unittest.TestCase):
         cls.num_variations = 0
         for key_str in config_content:
             if 'variation' in key_str:
-                 cls.num_variations += 1
+                cls.num_variations += 1
 
         use_sqlite = True if config_file['use_sqlite'].upper() in {'YES', 'TRUE'} else False
         if use_sqlite:
@@ -114,21 +114,13 @@ class TestNewsScrapper(unittest.TestCase):
 
     # 신문사가 적정 길이인지 체크 (e.g., 연합뉴스 -> OK)
     def test_is_provider_too_long(self):
-        korean_pattern = re.compile('.*[ㄱ-ㅎㅏ-ㅣ가-힣]+.*')
-
+        pattern = re.compile('.*[a-zA-Z0-9]+.*')
         for article_df in self.articles:
-            provider = article_df['provider']
-            len_provider = provider.apply(len)
-            error_row_count = 0
-            for k in range(len(article_df)):
-                # 신문사가 영문일 때는 30글자 이내, 한글일 때는 15글자 이내만 유효하게 설정
-                len_provider_limit = 30
-                if korean_pattern.search(provider[k]):
-                    len_provider_limit = 15
-                if len_provider[k] > len_provider_limit:
-                    error_row_count += 1
-
-            self.assertEqual(0, error_row_count)
+            for row in article_df.itertuples():
+                val = row.provider
+                len_provider = len(val)
+                len_limit = 30 if pattern.search(val) else 15
+                self.assertTrue(len_provider < len_limit)
 
     # image URL이 잘 접속되는지 체크
     def test_is_valid_image_url(self):
@@ -154,6 +146,17 @@ class TestNewsScrapper(unittest.TestCase):
         for error_row_count in list_error_row_count:
             self.assertEqual(0, error_row_count)
 
+    # 뉴스 요약 내 날짜 정보가 과도하게 많이 들어가 있는지 체크 (날짜는 뉴스 요약에서 0번이나 1번만 등장해야 함)
+    def test_is_summary_contains_multiple_dates(self):
+        pattern = re.compile(
+            '\d{4}[년|\.]\s{0,1}\d{2}[월|\.]\s{0,1}\d{2}\s{0,1}일{0,1}\s{0,1}\d{2}[시|:]\s{0,1}\d{2}분{0,1}')
+
+        for article_df in self.articles:
+            for row in article_df.itertuples():
+                val = row.summary
+                find_list = pattern.findall(val)
+                self.assertLessEqual(len(find_list), 1)
+
     # 뉴스 제목 길이가 60자 이하인지 체크
     def test_is_title_too_long(self):
         for article_df in self.articles:
@@ -162,4 +165,6 @@ class TestNewsScrapper(unittest.TestCase):
 
 
 if __name__ == '__main__':
-    unittest.main()
+    #unittest.main()
+    suite = unittest.TestLoader().loadTestsFromTestCase(TestNewsScrapper)
+    test_result = unittest.TextTestRunner(verbosity=2).run(suite)
