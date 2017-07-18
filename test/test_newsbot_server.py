@@ -5,7 +5,9 @@ from newsbot import SlackNewsBot
 import configparser
 import pickle
 import timeout_decorator
-
+import sqlite3
+import pandas as pd
+import datetime
 
 class TestNewsBotServer(unittest.TestCase):
     def setUp(self):
@@ -28,13 +30,32 @@ class TestNewsBotServer(unittest.TestCase):
         config_file = cls.config['FILE']
         config_server = cls.config['SERVER']
         config_slack = cls.config['SLACK']
+        config_content = cls.config['CONTENTS']
         file_articles = parent_folder + config_file['pickle_articles']
         host = config_server['host']
         port = int(config_server['port'])
+        cls.num_variations = 0
+        for key_str in config_content:
+            if 'variation' in key_str:
+                cls.num_variations += 1
 
-        cls.flag_articles = True if os.path.exists(file_articles) else False
-        with open(file_articles, 'rb') as f:
-            cls.articles = pickle.load(f)
+        use_sqlite = True if config_file['use_sqlite'].upper() in {'YES', 'TRUE'} else False
+        if use_sqlite:
+            cls.articles = []
+            sqlite_articles = parent_folder + config_file['sqlite_database']
+            cls.flag_articles = True if os.path.exists(sqlite_articles) else False
+
+            con = sqlite3.connect(sqlite_articles)
+            query = 'SELECT * FROM article WHERE variation='
+            for i in range(cls.num_variations):
+                table = pd.read_sql_query(query + str(i), con)
+                cls.articles.append(table)
+            con.close()
+        else:
+            file_articles = parent_folder + config_file['pickle_articles']
+            cls.flag_articles = True if os.path.exists(file_articles) else False
+            with open(file_articles, 'rb') as f:
+                cls.articles = pickle.load(f)
 
         sock = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         sock.settimeout(2)  # 2 Second Timeout
@@ -60,4 +81,5 @@ class TestNewsBotServer(unittest.TestCase):
             self.assertIsNone(error_msg)
 
 if __name__ == '__main__':
-    unittest.main()
+    suite = unittest.TestLoader().loadTestsFromTestCase(TestNewsBotServer)
+    test_result = unittest.TextTestRunner(verbosity=2).run(suite)
